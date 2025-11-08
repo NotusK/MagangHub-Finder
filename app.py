@@ -1,9 +1,11 @@
 from flask import Flask, render_template, request, jsonify
-import requests
 import json
-import time
 
 app = Flask(__name__)
+
+# Load JSON file once at startup
+with open('public/vacancies-aktif.json', 'r', encoding='utf-8') as f:
+    all_jobs = json.load(f)
 
 @app.route('/')
 def index():
@@ -12,74 +14,55 @@ def index():
 @app.route('/search', methods=['POST'])
 def search():
     try:
-        jurusan = request.form.get('jurusan')
-        kode_provinsi = request.form.get('provinsi')
-        target_kabupaten = request.form.getlist('kabupaten[]')
-        
-        base_url = "https://maganghub.kemnaker.go.id/be/v1/api/list/vacancies-aktif"
-        limit = 100
-        page = 1
+        jurusan = request.form.get('jurusan', '').lower()
+        kode_provinsi = request.form.get('provinsi', '')
+        target_kabupaten = [kab.upper() for kab in request.form.getlist('kabupaten[]')]
+
         found_positions = []
 
-        while True:
-            url = f"{base_url}?order_by=jumlah_kuota&order_direction=DESC&page={page}&limit={limit}&kode_provinsi={kode_provinsi}"
-            response = requests.get(url)
-            
-            if response.status_code != 200:
-                break
-            
+        for item in all_jobs:
+            id_posisi = item.get("id_posisi", "")
+            posisi = item.get("posisi", "")
+            jumlah_kuota = item.get("jumlah_kuota", "")
+            jumlah_terdaftar = item.get("jumlah_terdaftar", "")
+
+            perusahaan = item.get("perusahaan", {})
+            nama_perusahaan = perusahaan.get("nama_perusahaan", "")
+            nama_kabupaten = perusahaan.get("nama_kabupaten", "")
+            kode_prov = perusahaan.get("kode_provinsi", "")
+
+            # Skip jobs from other provinces if kode_provinsi is specified
+            if kode_provinsi and kode_prov != kode_provinsi:
+                continue
+
+            # Parse prodi
+            program_studi_raw = item.get("program_studi", "[]")
             try:
-                data = response.json()
+                program_studi_list = json.loads(program_studi_raw)
             except:
-                break
-            
-            jobs = data.get("data", [])
-            if not jobs:
-                break
-            
-            for item in jobs:
-                id_posisi = item.get("id_posisi", "")
-                posisi = item.get("posisi", "")
-                jumlah_kuota = item.get("jumlah_kuota", "")
-                jumlah_terdaftar = item.get("jumlah_terdaftar", "")
-                
-                program_studi_raw = item.get("program_studi", "[]")
-                try:
-                    program_studi_list = json.loads(program_studi_raw)
-                except:
-                    program_studi_list = []
-                
-                program_titles = [ps.get("title", "") for ps in program_studi_list]
-                
-                perusahaan = item.get("perusahaan", {})
-                nama_perusahaan = perusahaan.get("nama_perusahaan", "")
-                nama_kabupaten = perusahaan.get("nama_kabupaten", "")
-                
-                if any(jurusan.lower() in title.lower() for title in program_titles) and \
-                   any(kab in nama_kabupaten.upper() for kab in target_kabupaten):
-                    found_positions.append({
-                        "id_posisi": id_posisi,
-                        "nama_perusahaan": nama_perusahaan,
-                        "nama_kabupaten": nama_kabupaten,
-                        "posisi": posisi,
-                        "jumlah_kuota": jumlah_kuota,
-                        "jumlah_terdaftar": jumlah_terdaftar,
-                    })
-            
-            time.sleep(0.5)
-            page += 1
-            
-            # Safety limit
-            if page > 50:
-                break
-        
+                program_studi_list = []
+
+            program_titles = [ps.get("title", "") for ps in program_studi_list]
+
+            if any(jurusan in title.lower() for title in program_titles) and \
+               any(kab in nama_kabupaten.upper() for kab in target_kabupaten):
+                found_positions.append({
+                    "id_posisi": id_posisi,
+                    "nama_perusahaan": nama_perusahaan,
+                    "nama_kabupaten": nama_kabupaten,
+                    "posisi": posisi,
+                    "jumlah_kuota": jumlah_kuota,
+                    "jumlah_terdaftar": jumlah_terdaftar,
+                })
+
         return jsonify({
             'count': len(found_positions),
             'results': found_positions
         })
-        
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)
