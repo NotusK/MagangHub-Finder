@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify
 import json
 import os
 
@@ -8,20 +8,11 @@ app = Flask(__name__)
 def index():
     return render_template('index.html')
 
-# Serve JSON as static file
-@app.route('/api/vacancies')
-def get_vacancies():
-    try:
-        json_path = os.path.join(os.path.dirname(__file__), 'public', 'vacancies-aktif.json')
-        return send_from_directory(os.path.dirname(json_path), 'vacancies-aktif.json')
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
 @app.route('/search', methods=['POST'])
 def search():
     try:
-        # Load JSON only when needed, not at startup
-        json_path = os.path.join(os.path.dirname(__file__), 'public', 'vacancies-aktif.json')
+        # Load JSON from root directory
+        json_path = os.path.join(os.path.dirname(__file__), 'vacancies-aktif.json')
         with open(json_path, 'r', encoding='utf-8') as f:
             all_jobs = json.load(f)
         
