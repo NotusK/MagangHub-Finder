@@ -8,6 +8,13 @@ app = Flask(__name__)
 def index():
     return render_template('index.html')
 
+def get_chance(jumlah_kuota, jumlah_terdaftar):
+    try:
+        chance = (jumlah_kuota / (jumlah_terdaftar + 1)) * 100
+    except ZeroDivisionError:
+        chance = 100
+    return round(chance, 2)
+
 @app.route('/search', methods=['POST'])
 def search():
     try:
@@ -44,6 +51,8 @@ def search():
 
             program_titles = [ps.get("title", "") for ps in program_studi_list]
 
+            chance = get_chance(jumlah_kuota, jumlah_terdaftar)
+
             if any(jurusan in title.lower() for title in program_titles) and \
                any(kab in nama_kabupaten.upper() for kab in target_kabupaten):
                 found_positions.append({
@@ -53,6 +62,7 @@ def search():
                     "posisi": posisi,
                     "jumlah_kuota": jumlah_kuota,
                     "jumlah_terdaftar": jumlah_terdaftar,
+                    "chance": chance,
                 })
 
         return jsonify({
