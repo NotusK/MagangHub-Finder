@@ -75,8 +75,24 @@
 
 <div id="results" class="results-section" style="display: none;">
     <div class="results-header">
-        <h2>Hasil Pencarian</h2>
-        <p id="resultsCount"></p>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+            <div>
+                <h2>Hasil Pencarian</h2>
+                <p id="resultsCount"></p>
+            </div>
+            <div class="sort-controls">
+                <label for="sortBy">Urutkan:</label>
+                <select id="sortBy" class="sort-select">
+                    <option value="chance">Chance</option>
+                    <option value="kuota">Jumlah Kuota</option>
+                    <option value="terdaftar">Jumlah Terdaftar</option>
+                </select>
+                <select id="sortOrder" class="sort-select">
+                    <option value="desc">Tertinggi</option>
+                    <option value="asc">Terendah</option>
+                </select>
+            </div>
+        </div>
     </div>
     <div id="resultsList"></div>
 </div>
@@ -123,6 +139,59 @@ const kabupatenData = {
     '91': ['KAB. FAKFAK', 'KAB. KAIMANA', 'KAB. MANOKWARI', 'KAB. MANOKWARI SELATAN', 'KAB. MAYBRAT', 'KAB. PEGUNUNGAN ARFAK', 'KAB. RAJA AMPAT', 'KAB. SORONG', 'KAB. SORONG SELATAN', 'KAB. TAMBRAUW', 'KAB. TELUK BINTUNI', 'KAB. TELUK WONDAMA', 'KOTA SORONG'],
     '94': ['KAB. ASMAT', 'KAB. BIAK NUMFOR', 'KAB. BOVEN DIGOEL', 'KAB. DEIYAI', 'KAB. DOGIYAI', 'KAB. INTAN JAYA', 'KAB. JAYAPURA', 'KAB. JAYAWIJAYA', 'KAB. KEEROM', 'KAB. KEPULAUAN YAPEN', 'KAB. LANNY JAYA', 'KAB. MAMBERAMO RAYA', 'KAB. MAMBERAMO TENGAH', 'KAB. MAPPI', 'KAB. MERAUKE', 'KAB. MIMIKA', 'KAB. NABIRE', 'KAB. NDUGA', 'KAB. PANIAI', 'KAB. PEGUNUNGAN BINTANG', 'KAB. PUNCAK', 'KAB. PUNCAK JAYA', 'KAB. SARMI', 'KAB. SUPIORI', 'KAB. TOLIKARA', 'KAB. WAROPEN', 'KAB. YAHUKIMO', 'KAB. YALIMO', 'KOTA JAYAPURA']
 };
+
+// Store current results for client-side sorting
+let currentResults = [];
+
+// Function to render results
+function renderResults(results) {
+    const resultsList = document.getElementById('resultsList');
+    resultsList.innerHTML = results.map((item, index) => `
+        <div class="result-card">
+            <div class="result-number">${index + 1}</div>
+            <div class="result-content">
+                <h3>${item.posisi}</h3>
+                <p class="company">${item.nama_perusahaan}</p>
+                <div class="result-details">
+                    <span class="badge">${item.nama_kabupaten}</span>
+                    <span class="quota">Kuota: ${item.jumlah_kuota} | Terdaftar: ${item.jumlah_terdaftar} | Chance: ${item.chance}%</span>
+                </div>
+                <a href="https://maganghub.kemnaker.go.id/lowongan/view/${item.id_posisi}" target="_blank" class="btn-link">
+                    Lihat Detail →
+                </a>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Function to sort and render results
+function sortAndRenderResults() {
+    const sortBy = document.getElementById('sortBy').value;
+    const sortOrder = document.getElementById('sortOrder').value;
+    
+    const sorted = [...currentResults].sort((a, b) => {
+        let aVal, bVal;
+        
+        if (sortBy === 'chance') {
+            aVal = a.chance;
+            bVal = b.chance;
+        } else if (sortBy === 'kuota') {
+            aVal = a.jumlah_kuota;
+            bVal = b.jumlah_kuota;
+        } else if (sortBy === 'terdaftar') {
+            aVal = a.jumlah_terdaftar;
+            bVal = b.jumlah_terdaftar;
+        }
+        
+        if (sortOrder === 'desc') {
+            return bVal - aVal;
+        } else {
+            return aVal - bVal;
+        }
+    });
+    
+    renderResults(sorted);
+}
 
 // Update kabupaten dropdown when provinsi changes
 document.getElementById('provinsi').addEventListener('change', function() {
@@ -188,13 +257,25 @@ document.getElementById('provinsi').addEventListener('change', function() {
     }
 });
 
+// Add event listeners for sorting controls
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if sort controls exist before adding listeners
+    const sortBy = document.getElementById('sortBy');
+    const sortOrder = document.getElementById('sortOrder');
+    
+    if (sortBy && sortOrder) {
+        sortBy.addEventListener('change', sortAndRenderResults);
+        sortOrder.addEventListener('change', sortAndRenderResults);
+    }
+});
+
+// Form submission handler
 document.getElementById('searchForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const btnText = document.getElementById('btnText');
     const btnLoading = document.getElementById('btnLoading');
     const results = document.getElementById('results');
-    const resultsList = document.getElementById('resultsList');
     const resultsCount = document.getElementById('resultsCount');
     const errorMessage = document.getElementById('errorMessage');
     
@@ -218,8 +299,11 @@ document.getElementById('searchForm').addEventListener('submit', async (e) => {
         return;
     }
     
-    // Add kabupaten as comma-separated string
-    formData.append('kabupaten', selectedKabupaten.join(','));
+    // Clear existing kabupaten[] entries and add new ones
+    formData.delete('kabupaten[]');
+    selectedKabupaten.forEach(kab => {
+        formData.append('kabupaten[]', kab);
+    });
     
     try {
         const response = await fetch('/search', {
@@ -233,23 +317,17 @@ document.getElementById('searchForm').addEventListener('submit', async (e) => {
             errorMessage.textContent = data.error;
             errorMessage.style.display = 'block';
         } else {
+            // Store results for sorting
+            currentResults = data.results;
             resultsCount.textContent = `Ditemukan ${data.count} lowongan`;
-            resultsList.innerHTML = data.results.map((item, index) => `
-                <div class="result-card">
-                    <div class="result-number">${index + 1}</div>
-                    <div class="result-content">
-                        <h3>${item.posisi}</h3>
-                        <p class="company">${item.nama_perusahaan}</p>
-                        <div class="result-details">
-                            <span class="badge">${item.nama_kabupaten}</span>
-                            <span class="quota">Kuota: ${item.jumlah_kuota} | Terdaftar: ${item.jumlah_terdaftar} | Chance: ${item.chance}%</span>
-                        </div>
-                        <a href="https://maganghub.kemnaker.go.id/lowongan/view/${item.id_posisi}" target="_blank" class="btn-link">
-                            Lihat Detail →
-                        </a>
-                    </div>
-                </div>
-            `).join('');
+            
+            // Reset sort controls to default
+            document.getElementById('sortBy').value = 'chance';
+            document.getElementById('sortOrder').value = 'desc';
+            
+            // Render with default sorting
+            sortAndRenderResults();
+            
             results.style.display = 'block';
             results.scrollIntoView({ behavior: 'smooth' });
         }
