@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import json
 import os
+import glob
 
 app = Flask(__name__)
 
@@ -18,10 +19,11 @@ def get_chance(jumlah_kuota, jumlah_terdaftar):
 @app.route('/search', methods=['POST'])
 def search():
     try:
-        # Load JSON from root directory
-        json_path = os.path.join(os.path.dirname(__file__), 'vacancies-aktif.json')
-        with open(json_path, 'r', encoding='utf-8') as f:
-            all_jobs = json.load(f)
+
+        all_jobs = []
+        for file in glob.glob(os.path.join(os.path.dirname(__file__), 'data', 'vacancies-part*.json')):
+            with open(file, 'r', encoding='utf-8') as f:
+                all_jobs.extend(json.load(f))
         
         jurusan = request.form.get('jurusan', '').lower()
         kode_provinsi = request.form.get('provinsi', '')
