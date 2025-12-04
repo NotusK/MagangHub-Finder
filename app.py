@@ -21,7 +21,7 @@ def search():
     try:
 
         all_jobs = []
-        for file in glob.glob(os.path.join(os.path.dirname(__file__), 'data', 'vacancies-aktif*.json')):
+        for file in glob.glob(os.path.join(os.path.dirname(__file__), 'data', 'vacancies-aktif.json')):
             with open(file, 'r', encoding='utf-8') as f:
                 all_jobs.extend(json.load(f))
         
